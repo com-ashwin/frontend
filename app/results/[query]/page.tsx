@@ -264,7 +264,7 @@ export default function ResultsPage({ params }: Props) {
                         <p style={{ color: '#ef4444', fontSize: '1rem', marginBottom: '8px' }}>Unable to fetch data</p>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{error}</p>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '12px' }}>
-                            Ensure the FastAPI backend is running at {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}
+                            Ensure the FastAPI backend is running at {process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}
                         </p>
                     </motion.div>
                 )}

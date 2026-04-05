@@ -12,30 +12,80 @@ export default function AdminPage() {
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
     const [stats, setStats] = useState({ users: '—', searches: '—', cached: '—' });
 
+    const [error, setError] = useState<string | null>(null);
+
     useEffect(() => {
         async function checkAdmin() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) { router.push('/auth'); return; }
+            try {
+                if (!supabase) {
+                    setError('Supabase is not configured. Check your .env.local file.');
+                    setIsAdmin(false);
+                    return;
+                }
 
-            const { data: profile } = await supabase.from('profiles').select('role').eq('id', user!.id).single();
-            if (profile?.role !== 'admin') { setIsAdmin(false); return; }
-            setIsAdmin(true);
+                const { data: authData, error: authError } = await supabase.auth.getUser();
+                if (authError || !authData?.user) {
+                    router.push('/auth');
+                    return;
+                }
 
-            // Load stats
-            const [{ count: userCount }, { count: searchCount }, { count: cacheCount }] = await Promise.all([
-                supabase.from('profiles').select('*', { count: 'exact', head: true }),
-                supabase.from('searches').select('*', { count: 'exact', head: true }),
-                supabase.from('heritage_cache').select('*', { count: 'exact', head: true }),
-            ]);
-            setStats({ users: String(userCount ?? 0), searches: String(searchCount ?? 0), cached: String(cacheCount ?? 0) });
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', authData.user.id)
+                    .single();
+
+                if (profileError || profile?.role !== 'admin') {
+                    console.error('Admin check failed:', profileError);
+                    setIsAdmin(false);
+                    return;
+                }
+
+                setIsAdmin(true);
+
+                // Load stats
+                const [usersRes, searchesRes, cacheRes] = await Promise.all([
+                    supabase.from('profiles').select('*', { count: 'exact', head: true }),
+                    supabase.from('searches').select('*', { count: 'exact', head: true }),
+                    supabase.from('heritage_cache').select('*', { count: 'exact', head: true }),
+                ]);
+                
+                setStats({
+                    users: String(usersRes.count ?? 0),
+                    searches: String(searchesRes.count ?? 0),
+                    cached: String(cacheRes.count ?? 0)
+                });
+            } catch (err) {
+                console.error('Unexpected admin check error:', err);
+                setError('An unexpected error occurred during permission check.');
+                setIsAdmin(false);
+            }
         }
         checkAdmin();
-    }, []);
+    }, [supabase, router]);
 
     if (isAdmin === null) {
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                Checking permissions…
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: 'var(--text-muted)' }}>
+                <div style={{ width: 40, height: 40, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#c9a84c', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                <span>Checking permissions…</span>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px', padding: '24px', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '20px', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <AlertTriangle size={32} color="#ef4444" />
+                </div>
+                <div>
+                    <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.5rem', marginBottom: '8px' }}>Configuration Error</h2>
+                    <p style={{ color: 'var(--text-muted)', maxWidth: '400px' }}>{error}</p>
+                </div>
+                <button onClick={() => router.push('/')} style={{ padding: '12px 24px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                    Return to Home
+                </button>
             </div>
         );
     }
